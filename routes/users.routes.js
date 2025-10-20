@@ -2,45 +2,46 @@ import express from 'express';
 import { validateRequiredFields } from '../utils/validation.utils.js';
 import { createError } from '../utils/error.utils.js';
 import { addUser, getAllUsers, findUserById, updateUserById, deleteUserById } from '../services/users.service.js';
-import { getUserWithoutPassword, createUser, getUsersWithoutPassword } from '../models/user.models.js';
 
 const Router = express.Router();
 const REQUIRED_FIELDS = ['nombre', 'email', 'password'];
 
-Router.post('/api/users', async (req, res, next) => {
+Router.post('/', async (req, res, next) => {
     try {
-        const dataUser = createUser(req.body);
-        const saved = await addUser(dataUser);
-        const safeUser = getUserWithoutPassword(saved);
-        res.status(201).json({ success: true, message: 'Usuario creado exitosamente', data: safeUser });
+        const safeData = { ...req.body };
+        safeData.nombre = safeData.nombre.trim();
+        safeData.email = safeData.email.trim().toLowerCase();
+        const saved = await addUser(safeData);
+        res.status(201).json({ success: true, message: 'Usuario creado exitosamente', data: saved });
     } catch (err) { next(err); }
 });
 
-Router.get('/api/users', async (_req, res, next) => {
+Router.get('/', async (_req, res, next) => {
     try {
         const allUsers = await getAllUsers();
-        res.status(200).json(getUsersWithoutPassword(allUsers));
+        res.status(200).json(allUsers);
     } catch (err) { next(err); }
 });
 
-Router.get('/api/users/:id', async (req, res, next) => {
+Router.get('/:id', async (req, res, next) => {
+    try {
+        const user = await findUserById(req.params.id);
+        res.status(200).json(user);
+    } catch (err) { next(err); }
+});
+
+Router.put('/:id', async (req, res, next) => {
     try {
         const id = Number(req.params.id);
-        const user = await findUserById(id);
-        res.status(200).json(getUserWithoutPassword(user));
+        const safeData = { ...req.body };
+
+        validateRequiredFields(safeData, REQUIRED_FIELDS);
+        const updated = await updateUserById(id, safeData);
+        res.status(200).json({ success: true, message: 'Usuario actualizado correctamente', data: updated });
     } catch (err) { next(err); }
 });
 
-Router.put('/api/users/:id', async (req, res, next) => {
-    try {
-        const id = Number(req.params.id);
-        validateRequiredFields(req.body, REQUIRED_FIELDS);
-        const updated = await updateUserById(id, req.body);
-        res.status(200).json({ success: true, message: 'Usuario actualizado correctamente', data: getUserWithoutPassword(updated) });
-    } catch (err) { next(err); }
-});
-
-Router.patch('/api/users/:id', async (req, res, next) => {
+Router.patch('/:id', async (req, res, next) => {
     try {
         const id = Number(req.params.id);
         const updates = req.body;
@@ -54,14 +55,14 @@ Router.patch('/api/users/:id', async (req, res, next) => {
         res.status(200).json({
         success: true,
         message: 'Usuario actualizado correctamente',
-        data: getUserWithoutPassword(updated)
-        });
+        data: updated
+    });
     } catch (err) {
         next(err);
     }
 });
 
-Router.delete('/api/users/:id', async (req, res, next) => {
+Router.delete('/:id', async (req, res, next) => {
     try {
         const id = Number(req.params.id);
         const deleted = await deleteUserById(id);
@@ -69,8 +70,8 @@ Router.delete('/api/users/:id', async (req, res, next) => {
         res.status(200).json({
         success: true,
         message: 'Usuario eliminado correctamente',
-        data: getUserWithoutPassword(deleted)
-        });
+        data: deleted
+    });
     } catch (err) {
         next(err);
     }

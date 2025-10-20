@@ -1,17 +1,11 @@
 export function createUser(userData) {
-    const nombre = String(userData.nombre ?? '').trim();
-    const email = String(userData.email ?? '').trim().toLowerCase();
-    const password = userData.password;
-
-    const user = {
+    return {
         id: Date.now(),
-        nombre,
-        email,
-        password,
+        nombre: userData.nombre,
+        email: userData.email,
+        password: userData.password,
         createdAt: new Date().toISOString()
     };
-
-    return user;
 }
 
 export function getUserWithoutPassword(user) {

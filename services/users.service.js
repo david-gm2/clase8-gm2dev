@@ -1,77 +1,84 @@
 import { createError } from '../utils/error.utils.js';
+import { ERROR_TYPES } from '../constants.js';
 import { isValidEmail , isValidPassword , isValidName , validateRequiredFields} from '../utils/validation.utils.js';
 import {
     findAll,
     findById,
     findByEmail,
-    existsByEmail,
     save,
     update,
     deleteById
 } from '../repository/user.repository.js';
+import {getUsersWithoutPassword, getUserWithoutPassword} from '../models/user.models.js';
 
 const REQUIRED_FIELDS = ['nombre', 'email', 'password'];
 
 export async function addUser(user) {
-  validateRequiredFields(user, REQUIRED_FIELDS);
 
-  if (!isValidEmail(user.email)) throw createError(422, 'invalid', 'Email inválido');
-  if (!isValidPassword(user.password)) throw createError(422, 'invalid', 'Password inválida');
-  if (!isValidName(user.nombre)) throw createError(422, 'invalid', 'Nombre inválido');
+    const dataUser = createUser(user);
+    validateRequiredFields(dataUser, REQUIRED_FIELDS);
 
-  await ensureEmailNotTaken(user.email);
-  return save(user);
+    if (!isValidEmail(dataUser.email)) throw createError(422, ERROR_TYPES.INVALID, 'Email inválido');
+    if (!isValidPassword(dataUser.password)) throw createError(422, ERROR_TYPES.INVALID, 'Password inválida');
+    if (!isValidName(dataUser.nombre)) throw createError(422, ERROR_TYPES.INVALID, 'Nombre inválido');
+
+    await ensureEmailNotTaken(dataUser.email);
+
+    const saved = await save(dataUser);
+    const safeUser = getUserWithoutPassword(saved);
+    return safeUser;
 }
 
 export async function getAllUsers() {
     const users = await findAll();
-    if (!users || users.length === 0)
-    throw createError(404, 'not_found', 'No existen usuarios en la base de datos');
-    return users;
+    if (!users || users.length === 0) throw createError(404, ERROR_TYPES.NOT_FOUND, 'No existen usuarios en la base de datos');
+    return getUsersWithoutPassword(users);
 }
 
 export async function findUserById(id) {
     const user = await findById(id);
-    if (!user) throw createError(404, 'not_found', 'Usuario no encontrado');
-    return user;
+    if (!user) throw createError(404, ERROR_TYPES.NOT_FOUND, 'Usuario no encontrado');
+    return getUserWithoutPassword(user);
 }
 
 export async function ensureEmailNotTaken(email, excludeId = null) {
     const user = await findByEmail(email);
 
     if (user && String(user.id) !== String(excludeId)) {
-        throw createError(409, 'conflict', 'Email ya existe');
+        throw createError(409, ERROR_TYPES.CONFLICT, 'Email ya existe');
     }
 }
 
 export async function updateUserById(id, data) {
     const safeData = { ...data };
 
+    await findUserById(id);
+
     delete safeData.id;
     delete safeData.createdAt;
 
     if (safeData.nombre !== undefined) {
         safeData.nombre = safeData.nombre.trim();
-        if (!isValidName(safeData.nombre)) throw createError(422, 'invalid', 'Nombre inválido');
+        if (!isValidName(safeData.nombre)) throw createError(422, ERROR_TYPES.INVALID, 'Nombre inválido');
     }
 
     if (safeData.email !== undefined) {
         safeData.email = safeData.email.trim().toLowerCase();
-        if (!isValidEmail(safeData.email)) throw createError(422, 'invalid', 'Email inválido');
+        if (!isValidEmail(safeData.email)) throw createError(422, ERROR_TYPES.INVALID, 'Email inválido');
         await ensureEmailNotTaken(safeData.email, id);
     }
 
     if (safeData.password !== undefined) {
-        if (!isValidPassword(safeData.password)) throw createError(422, 'invalid', 'Password inválida');
+        if (!isValidPassword(safeData.password)) throw createError(422, ERROR_TYPES.INVALID, 'Password inválida');
     }
 
     const updated = await update(id, safeData);
-    if (!updated) throw createError(404, 'not_found', 'Usuario no encontrado');
-    return updated;
+
+    return getUserWithoutPassword(updated);
 }
 
 export async function deleteUserById(id) {
     const deleted = await deleteById(id);
-    if (!deleted) throw createError(404, 'not_found', 'Usuario no encontrado');
-    return deleted;
+    if (!deleted) throw createError(404, ERROR_TYPES.NOT_FOUND, 'Usuario no encontrado');
+    return getUserWithoutPassword(deleted);
 }

@@ -1,4 +1,5 @@
 import { createError } from "./error.utils.js";
+import { ERROR_TYPES } from "../constants.js";
 
 export function validateRequiredFields(data, requiredFields) {
     for (const field of requiredFields) {
@@ -9,7 +10,7 @@ export function validateRequiredFields(data, requiredFields) {
         value === null ||
         (typeof value === "string" && value.trim() === "")
         ) {
-            throw createError(400, 'bad_request', `El campo ${field} is required`);
+            throw createError(400, ERROR_TYPES.BAD_REQUEST, `El campo ${field} is required`);
         }
     }
 }

@@ -1,7 +1,7 @@
 import express from 'express';
 import cors from 'cors';
 import usersRouter from './routes/users.routes.js';
-import { handlingError } from './middlewares/error.middleware.js';
+import { handlingError , notFoundHandler} from './middlewares/error.middleware.js';
 
 export function createApp() {
     const app = express();
@@ -15,9 +15,12 @@ export function createApp() {
         version: '2.0',
         architecture: 'Routes → Repository + Model'
     });
+
+
 });
 
-    app.use(usersRouter);
+    app.use('/api/users', usersRouter);
     app.use(handlingError);
+    app.use(notFoundHandler);
     return app;
 }
