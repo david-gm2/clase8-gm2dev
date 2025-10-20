@@ -10,11 +10,12 @@ export function createApp() {
     app.use(express.json());
 
     app.get('/', (req, res) => {
-        res.json({
-            success: true,
-            message: 'Hola, soy js en formato .json'
-        });
+    res.json({
+        message: 'API de usuarios - Ejercicio 2',
+        version: '2.0',
+        architecture: 'Routes → Repository + Model'
     });
+});
 
     app.use(usersRouter);
     app.use(handlingError);

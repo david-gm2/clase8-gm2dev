@@ -24,6 +24,8 @@ export function isValidPassword(password, minLength = 6) {
     if (typeof password !== 'string') return false;
     return password.length >= minLength;
 }
+
 export function isValidName(name) {
-    if (typeof name !== 'string' || name.trim() === '') return false;
+    if (name.trim().length === 0) return false;
+    return true; 
 }
