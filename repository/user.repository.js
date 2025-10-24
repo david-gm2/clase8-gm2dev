@@ -1,39 +1,56 @@
-const usuarios = [];
+import { pool } from '../db/pool.js';
 
-export function findAll() {
-    return usuarios;
+const PUBLIC_PARAMS = 'id, nombre, email, created_at';
+const TABLE_NAME = 'usuarios';
+
+export async function findAll() {
+    const [rows] = await pool.execute(`SELECT ${PUBLIC_PARAMS} FROM ${TABLE_NAME}`);
+    return rows;
 }
 
-export function findById(id) {
-    return usuarios.find(u => u.id === id);
+export async function getUserById(id) {
+    const [rows] = await pool.execute(`SELECT ${PUBLIC_PARAMS} FROM ${TABLE_NAME} WHERE id = ?`, [id]);
+    return rows[0] ?? null;
 }
 
-export function findByEmail(email) {
-    return usuarios.find(u => u.email === email);
+export async function findByEmail(email) {
+    const [rows] = await pool.execute(`SELECT ${PUBLIC_PARAMS} FROM ${TABLE_NAME} WHERE email = ?`, [email]);
+    return rows[0] ?? null;
 }
 
-export function existsByEmail(email) {
-    return usuarios.some(u => u.email === email);
+export async function existsByEmail(email) {
+    const [rows] = await pool.execute(`SELECT COUNT(*) as count FROM ${TABLE_NAME} WHERE email = ?`, [email]);
+    return rows[0].count > 0;
 }
 
-export function save(userData) {
-    usuarios.push(userData);
-    return userData;
+export async function save(userData) {
+
+    const keys = Object.keys(userData);
+    const valuesData = Object.values(userData);
+
+    const quantity = keys.map(() => '?').join(', ');
+
+    const [result] = await pool.execute(`INSERT INTO ${TABLE_NAME} (${keys.join(', ')}) VALUES (${quantity})`, [...valuesData]);
+    return await getUserById(result.insertId);
 }
 
-export function update(id, userData) {
-    const index = usuarios.findIndex(u => u.id === id);
-    if (index === -1) return null;
+export async function update(id, userData) {
+    const { userId , ...dataToUpdate } = userData;
+    const sets = [];
+    const values = [];
 
-    const updated = { ...usuarios[index], ...userData };
-    usuarios[index] = updated;
-    return updated;
+    for (const key of Object.keys(dataToUpdate)) {
+        if (dataToUpdate[key] !== undefined) {
+            sets.push(`${key} = ?`);
+            values.push(dataToUpdate[key]);
+        }
+    }
+
+    await pool.execute(`UPDATE ${TABLE_NAME} SET ${sets.join(', ')} WHERE id = ?`, [...values, id]);
+    return await getUserById(id);
 }
 
-export function deleteById(id) {
-    const index = usuarios.findIndex(u => u.id === id);
-    if (index === -1) return null;
-
-    const [deleted] = usuarios.splice(index, 1);
-    return deleted;
+export async function deleteById(id) {
+    const [res] = await pool.execute(`DELETE FROM ${TABLE_NAME} WHERE id = ?`, [id]);
+    return res;
 }

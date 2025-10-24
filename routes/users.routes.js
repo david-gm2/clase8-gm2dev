@@ -1,10 +1,10 @@
 import express from 'express';
 import { validateRequiredFields } from '../utils/validation.utils.js';
 import { createError } from '../utils/error.utils.js';
-import { addUser, getAllUsers, findUserById, updateUserById, deleteUserById } from '../services/users.service.js';
+import { addUser, getAllUsers, findUserById, updateUserById, deleteUserById, updateUserRole } from '../services/users.service.js';
 
 const Router = express.Router();
-const REQUIRED_FIELDS = ['nombre', 'email', 'password'];
+const REQUIRED_FIELDS = ['nombre', 'email'];
 
 Router.post('/', async (req, res, next) => {
     try {
@@ -16,7 +16,7 @@ Router.post('/', async (req, res, next) => {
     } catch (err) { next(err); }
 });
 
-Router.get('/', async (_req, res, next) => {
+Router.get('/', async (req, res, next) => {
     try {
         const allUsers = await getAllUsers();
         res.status(200).json(allUsers);
@@ -55,6 +55,20 @@ Router.patch('/:id', async (req, res, next) => {
         res.status(200).json({
         success: true,
         message: 'Usuario actualizado correctamente',
+        data: updated
+    });
+    } catch (err) {
+        next(err);
+    }
+});
+Router.patch('/rol/:id', async (req, res, next) => {
+    try {
+        const id = Number(req.params.id);
+        const role = req.body.role;
+        const updated = await updateUserRole(id, role);
+        res.status(200).json({
+        success: true,
+        message: 'Rol de usuario actualizado correctamente',
         data: updated
     });
     } catch (err) {

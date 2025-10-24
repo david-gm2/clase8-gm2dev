@@ -3,13 +3,15 @@ import { ERROR_TYPES } from '../constants.js';
 import { isValidEmail , isValidPassword , isValidName , validateRequiredFields} from '../utils/validation.utils.js';
 import {
     findAll,
-    findById,
     findByEmail,
+    existsByEmail,
     save,
     update,
-    deleteById
+    deleteById,
+    getUserById
 } from '../repository/user.repository.js';
-import {getUsersWithoutPassword, getUserWithoutPassword} from '../models/user.models.js';
+import { getUsersWithoutPassword, getUserWithoutPassword, createUser } from '../models/user.models.js';
+import bcrypt from 'bcryptjs';
 
 const REQUIRED_FIELDS = ['nombre', 'email', 'password'];
 
@@ -24,9 +26,11 @@ export async function addUser(user) {
 
     await ensureEmailNotTaken(dataUser.email);
 
-    const saved = await save(dataUser);
-    const safeUser = getUserWithoutPassword(saved);
-    return safeUser;
+    const passwordHash = await bcrypt.hash(dataUser.password, 12);
+
+    const saved = await save(dataUser, passwordHash);
+    // const safeUser = getUserWithoutPassword(saved);
+    return saved;
 }
 
 export async function getAllUsers() {
@@ -36,17 +40,15 @@ export async function getAllUsers() {
 }
 
 export async function findUserById(id) {
-    const user = await findById(id);
+    const user = await getUserById(id);
     if (!user) throw createError(404, ERROR_TYPES.NOT_FOUND, 'Usuario no encontrado');
     return getUserWithoutPassword(user);
 }
 
 export async function ensureEmailNotTaken(email, excludeId = null) {
-    const user = await findByEmail(email);
+    const user = await existsByEmail(email);
 
-    if (user && String(user.id) !== String(excludeId)) {
-        throw createError(409, ERROR_TYPES.CONFLICT, 'Email ya existe');
-    }
+    if (user) throw createError(409, ERROR_TYPES.CONFLICT, 'Email ya existe');
 }
 
 export async function updateUserById(id, data) {
@@ -68,13 +70,16 @@ export async function updateUserById(id, data) {
         await ensureEmailNotTaken(safeData.email, id);
     }
 
-    if (safeData.password !== undefined) {
-        if (!isValidPassword(safeData.password)) throw createError(422, ERROR_TYPES.INVALID, 'Password inválida');
-    }
-
     const updated = await update(id, safeData);
 
-    return getUserWithoutPassword(updated);
+    return updated;
+}
+
+export async function updateUserRole(id, newRole) {
+    await findUserById(id);
+
+    const updated = await update(id, { role: newRole });
+    return updated;
 }
 
 export async function deleteUserById(id) {

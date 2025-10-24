@@ -3,8 +3,10 @@ export function createUser(userData) {
         id: Date.now(),
         nombre: userData.nombre,
         email: userData.email,
-        password: userData.password,
-        createdAt: new Date().toISOString()
+        password: userData.password
+        //Se encarga labase de datos de asignar estos campos
+        // role: 'user',
+        // createdAt: new Date().toISOString()
     };
 }
 
