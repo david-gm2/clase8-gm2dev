@@ -1,89 +1,76 @@
+import { UserRepository } from '../repository/user.repository.js';
 import { createError } from '../utils/error.utils.js';
 import { ERROR_TYPES } from '../constants.js';
-import { isValidEmail , isValidPassword , isValidName , validateRequiredFields} from '../utils/validation.utils.js';
-import {
-    findAll,
-    findByEmail,
-    existsByEmail,
-    save,
-    update,
-    deleteById,
-    getUserById
-} from '../repository/user.repository.js';
-import { getUsersWithoutPassword, getUserWithoutPassword, createUser } from '../models/user.models.js';
-import bcrypt from 'bcryptjs';
+import { hash, compare } from '../utils/hash.utils.js';
+import jwt from "jsonwebtoken";
+import dotenv from 'dotenv';
+dotenv.config();
 
-const REQUIRED_FIELDS = ['nombre', 'email', 'password'];
+export async function createUserService({ nombre, email, password }) {
+    const existing = await UserRepository.findByEmail(email);
+    if (existing) throw createError(409, ERROR_TYPES.CONFLICT, 'Email ya registrado');
 
-export async function addUser(user) {
+    const passwordHash = await hash(password, 12);
 
-    const dataUser = createUser(user);
-    validateRequiredFields(dataUser, REQUIRED_FIELDS);
+    const newUser = await UserRepository.create({
+        nombre,
+        email,
+        password: passwordHash,
+    });
 
-    if (!isValidEmail(dataUser.email)) throw createError(422, ERROR_TYPES.INVALID, 'Email inválido');
-    if (!isValidPassword(dataUser.password)) throw createError(422, ERROR_TYPES.INVALID, 'Password inválida');
-    if (!isValidName(dataUser.nombre)) throw createError(422, ERROR_TYPES.INVALID, 'Nombre inválido');
-
-    await ensureEmailNotTaken(dataUser.email);
-
-    const passwordHash = await bcrypt.hash(dataUser.password, 12);
-
-    const saved = await save(dataUser, passwordHash);
-    // const safeUser = getUserWithoutPassword(saved);
-    return saved;
+    return newUser;
 }
 
-export async function getAllUsers() {
-    const users = await findAll();
-    if (!users || users.length === 0) throw createError(404, ERROR_TYPES.NOT_FOUND, 'No existen usuarios en la base de datos');
-    return getUsersWithoutPassword(users);
-}
-
-export async function findUserById(id) {
-    const user = await getUserById(id);
+export async function findUserService(id) {
+    const user = await UserRepository.get(id);
     if (!user) throw createError(404, ERROR_TYPES.NOT_FOUND, 'Usuario no encontrado');
-    return getUserWithoutPassword(user);
+    return user;
 }
 
-export async function ensureEmailNotTaken(email, excludeId = null) {
-    const user = await existsByEmail(email);
+export async function updateUserService({ id, changes }) {
+    const existing = await UserRepository.get(id);
+    if (!existing) throw createError(404, ERROR_TYPES.NOT_FOUND, 'Usuario no encontrado');
 
-    if (user) throw createError(409, ERROR_TYPES.CONFLICT, 'Email ya existe');
-}
+    const dataToUpdate = {};
 
-export async function updateUserById(id, data) {
-    const safeData = { ...data };
+    if (changes.nombre) dataToUpdate.nombre = changes.nombre;
 
-    await findUserById(id);
-
-    delete safeData.id;
-    delete safeData.createdAt;
-
-    if (safeData.nombre !== undefined) {
-        safeData.nombre = safeData.nombre.trim();
-        if (!isValidName(safeData.nombre)) throw createError(422, ERROR_TYPES.INVALID, 'Nombre inválido');
+    if (changes.email && changes.email !== existing.email) {
+        const clash = await UserRepository.findByEmail(changes.email);
+        if (clash && clash.id !== id) throw createError(409, ERROR_TYPES.CONFLICT, 'Email ya registrado');
+        dataToUpdate.email = changes.email;
     }
 
-    if (safeData.email !== undefined) {
-        safeData.email = safeData.email.trim().toLowerCase();
-        if (!isValidEmail(safeData.email)) throw createError(422, ERROR_TYPES.INVALID, 'Email inválido');
-        await ensureEmailNotTaken(safeData.email, id);
-    }
+    if (changes.password) dataToUpdate.password = await hash(changes.password, 12);
 
-    const updated = await update(id, safeData);
+    if (Object.keys(dataToUpdate).length === 0) return existing;
 
-    return updated;
+    return await UserRepository.update(id, dataToUpdate);
 }
 
-export async function updateUserRole(id, newRole) {
-    await findUserById(id);
+export async function deleteUserService(id) {
+    const existing = await UserRepository.get(id);
+    if (!existing) throw createError(404, ERROR_TYPES.NOT_FOUND, 'Usuario no encontrado');
 
-    const updated = await update(id, { role: newRole });
-    return updated;
+    const deleted = await UserRepository.delete(id);
+    if (deleted === 0) throw createError(500, ERROR_TYPES.INTERNAL, 'No se pudo eliminar');
+
+    return { id, deleted: true };
 }
 
-export async function deleteUserById(id) {
-    const deleted = await deleteById(id);
-    if (!deleted) throw createError(404, ERROR_TYPES.NOT_FOUND, 'Usuario no encontrado');
-    return getUserWithoutPassword(deleted);
+export async function loginUserService({email,password}) {
+    const userExist = await UserRepository.findByEmail(email);
+    if (!userExist) throw createError(401, ERROR_TYPES.UNAUTHORIZED, 'Credenciales inválidas');
+
+    const match = await compare(password, userExist.password);
+    if ( !match) throw createError(401, ERROR_TYPES.UNAUTHORIZED, 'Credenciales inválidas');
+
+    const token = jwt.sign({
+        id: userExist.id,
+        role: userExist.role
+    }, process.env.SECRET_JWT_KEY, {
+        expiresIn: '1h'
+    });
+    
+    return { logged: userExist, token };
 }
